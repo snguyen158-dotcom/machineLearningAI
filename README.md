@@ -4,4 +4,4 @@
 
 With the help of Google Gemini, there is a button to stop the webcam on the website, and there is a playable game using the webcam.
 
-[Link to Google Gemini Conversation](https://gemini.google.com/share/2c34607d861d)
+[Link to Google Gemini Conversation](https://gemini.google.com/share/202ae2787147)

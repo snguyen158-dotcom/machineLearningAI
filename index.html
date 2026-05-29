@@ -1,61 +1,378 @@
-<div>Teachable Machine Image Model</div>
-<button type="button" onclick="init()">Start</button>
-<div id="webcam-container"></div>
-<div id="label-container"></div>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-<script type="text/javascript">
-    // More API functions here:
-    // https://github.com/googlecreativelab/teachablemachine-community/tree/master/libraries/image
-
-    // the link to your model provided by Teachable Machine export panel
-   // const URL = "./my_model/";
-
-    let model, webcam, labelContainer, maxPredictions;
-
-    // Load the image model and setup the webcam
-    async function init() {
-       // const modelURL = URL + "model.json";
-       // const metadataURL = URL + "metadata.json";
-        const modelURL = "model.json";
-        const metadataURL = "metadata.json";
-
-        // load the model and metadata
-        // Refer to tmImage.loadFromFiles() in the API to support files from a file picker
-        // or files from your local hard drive
-        // Note: the pose library adds "tmImage" object to your window (window.tmImage)
-        model = await tmImage.load(modelURL, metadataURL);
-        maxPredictions = model.getTotalClasses();
-
-        // Convenience function to setup a webcam
-        const flip = true; // whether to flip the webcam
-        webcam = new tmImage.Webcam(200, 200, flip); // width, height, flip
-        await webcam.setup(); // request access to the webcam
-        await webcam.play();
-        window.requestAnimationFrame(loop);
-
-        // append elements to the DOM
-        document.getElementById("webcam-container").appendChild(webcam.canvas);
-        labelContainer = document.getElementById("label-container");
-        for (let i = 0; i < maxPredictions; i++) { // and class labels
-            labelContainer.appendChild(document.createElement("div"));
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rock Paper Scissors vs AI</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #fff;
+            text-align: center;
+            padding: 20px;
+            margin: 0;
         }
-    }
-
-    async function loop() {
-        webcam.update(); // update the webcam frame
-        await predict();
-        window.requestAnimationFrame(loop);
-    }
-
-    // run the webcam image through the image model
-    async function predict() {
-        // predict can take in an image, video or canvas html element
-        const prediction = await model.predict(webcam.canvas);
-        for (let i = 0; i < maxPredictions; i++) {
-            const classPrediction =
-                prediction[i].className + ": " + prediction[i].probability.toFixed(2);
-            labelContainer.childNodes[i].innerHTML = classPrediction;
+        h1 {
+            color: #00ffcc;
+            margin-bottom: 5px;
         }
-    }
-</script>
+        .subtitle {
+            color: #aaa;
+            font-style: italic;
+            margin-bottom: 25px;
+        }
+        
+        /* Elegant Instruction Panel */
+        .instruction-panel {
+            background: linear-gradient(135deg, #252525, #1e1e1e);
+            border-left: 4px solid #00ffcc;
+            border-radius: 6px;
+            max-width: 650px;
+            margin: 0 auto 30px auto;
+            padding: 20px;
+            text-align: left;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .instruction-panel h2 {
+            font-size: 18px;
+            color: #00ffcc;
+            margin-top: 0;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .instruction-panel p {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #dddddd;
+            margin: 0;
+        }
+
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            font-size: 16px;
+            padding: 10px 20px;
+            margin: 0 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s, transform 0.1s;
+        }
+        #start-btn { background-color: #00ffcc; color: #121212; }
+        #start-btn:hover { background-color: #00cc99; }
+        #stop-btn { background-color: #ff4444; color: #fff; }
+        #stop-btn:hover { background-color: #cc3333; }
+        #round-btn { background-color: #ffeb3b; color: #121212; }
+        #round-btn:hover { background-color: #fbc02d; }
+        
+        button:disabled { background-color: #555 !important; color: #888; cursor: not-allowed; transform: none !important; }
+        button:active { transform: scale(0.98); }
+        
+        .game-container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 40px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .display-card {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid #444;
+            min-width: 240px;
+        }
+        #webcam-container {
+            position: relative;
+            width: 220px;
+            height: 220px;
+            margin: 0 auto;
+        }
+        #webcam-container canvas {
+            border-radius: 8px;
+            border: 3px solid #00ffcc;
+        }
+        #flash-overlay {
+            position: absolute;
+            top: 3px; left: 3px; right: 3px; bottom: 3px;
+            background: white;
+            opacity: 0;
+            border-radius: 5px;
+            pointer-events: none;
+            transition: opacity 0.1s ease-out;
+            z-index: 10;
+        }
+        .choice-display {
+            font-size: 64px;
+            margin: 10px 0;
+            min-height: 85px;
+        }
+        
+        .score-board {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            font-size: 20px;
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 400px;
+            margin: 20px auto;
+            border-bottom: 4px solid #00ffcc;
+        }
+        .score { font-size: 32px; font-weight: bold; color: #00ffcc; }
+        
+        #result-banner {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 20px 0;
+            min-height: 44px;
+            color: #ffeb3b;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        #label-container {
+            margin-top: 15px;
+            font-size: 16px;
+            color: #aaa;
+            min-height: 60px;
+            line-height: 1.5;
+        }
+        .live-detection-highlight {
+            color: #00ffcc;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Rock, Paper, Scissors vs. AI</h1>
+    <div class="subtitle">A classic test of strategy, mediated by computer vision.</div>
+
+    <div class="instruction-panel">
+        <h2>Optimizing the Interface</h2>
+        <p>
+            To ensure the integrity of the predictive model, please construct your gestures exclusively with your hand completely framed within the camera's viewport. Because facial features introduce confounding visual data that may compromise the algorithm's precision, kindly ensure your countenance remains outside the frame during active play. 
+        </p>
+    </div>
+
+    <div class="controls">
+        <button type="button" id="start-btn" onclick="init()">Start Camera</button>
+        <button type="button" id="round-btn" onclick="startCountdown()" disabled>Play Round</button>
+        <button type="button" id="stop-btn" onclick="stopWebcam()" disabled>Stop Camera</button>
+    </div>
+
+    <div class="score-board">
+        <div>Player <div id="player-score" class="score">0</div></div>
+        <div>Tie <div id="tie-score" class="score">0</div></div>
+        <div>AI <div id="ai-score" class="score">0</div></div>
+    </div>
+
+    <div id="result-banner">Press Start Camera to Begin!</div>
+
+    <div class="game-container">
+        <div class="display-card">
+            <h3>Your Hand</h3>
+            <div id="webcam-container">
+                <div id="flash-overlay"></div>
+            </div>
+            <div id="label-container"></div>
+        </div>
+
+        <div class="display-card">
+            <h3>AI Opponent</h3>
+            <div id="ai-choice-emoji" class="choice-display">🤖</div>
+            <div id="ai-choice-text" style="font-weight: bold; color: #00ffcc; font-size: 20px;">Ready</div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <script type="text/javascript">
+        let model, webcam, labelContainer, maxPredictions;
+        let isCameraRunning = false;
+        let isCountingDown = false;
+
+        let currentLivePrediction = "";
+        let currentLiveConfidence = 0;
+
+        let playerScore = 0;
+        let aiScore = 0;
+        let tieScore = 0;
+
+        async function init() {
+            if (isCameraRunning) return;
+            isCameraRunning = true;
+
+            document.getElementById("start-btn").disabled = true;
+            document.getElementById("stop-btn").disabled = false;
+            document.getElementById("round-btn").disabled = false;
+            document.getElementById("result-banner").innerText = "Camera active. Click 'Play Round'!";
+
+            const modelURL = "model.json";
+            const metadataURL = "metadata.json";
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            const flip = true;
+            webcam = new tmImage.Webcam(220, 220, flip);
+            await webcam.setup();
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            const webcamContainer = document.getElementById("webcam-container");
+            const overlay = document.getElementById("flash-overlay");
+            webcamContainer.innerHTML = "";
+            webcamContainer.appendChild(overlay);
+            webcamContainer.appendChild(webcam.canvas);
+
+            labelContainer = document.getElementById("label-container");
+            labelContainer.innerHTML = "";
+            for (let i = 0; i < maxPredictions; i++) {
+                labelContainer.appendChild(document.createElement("div"));
+            }
+        }
+
+        async function loop() {
+            if (!isCameraRunning) return;
+            webcam.update(); 
+            await predictLive();
+            window.requestAnimationFrame(loop);
+        }
+
+        async function predictLive() {
+            const prediction = await model.predict(webcam.canvas);
+            
+            let highestProb = 0;
+            let bestMatch = "";
+
+            for (let i = 0; i < maxPredictions; i++) {
+                const prob = prediction[i].probability;
+                const className = prediction[i].className;
+                
+                let outputText = `${className}: ${(prob * 100).toFixed(0)}%`;
+                
+                if (prob > highestProb) {
+                    highestProb = prob;
+                    bestMatch = className.toLowerCase().trim();
+                }
+                
+                labelContainer.childNodes[i].innerHTML = outputText;
+                labelContainer.childNodes[i].className = ""; 
+            }
+
+            currentLivePrediction = bestMatch;
+            currentLiveConfidence = highestProb;
+
+            for (let i = 0; i < maxPredictions; i++) {
+                if (prediction[i].className.toLowerCase().trim() === currentLivePrediction && currentLiveConfidence > 0.5) {
+                    labelContainer.childNodes[i].className = "live-detection-highlight";
+                }
+            }
+        }
+
+        function startCountdown() {
+            if (isCountingDown || !isCameraRunning) return;
+            isCountingDown = true;
+            
+            document.getElementById("round-btn").disabled = true;
+            
+            document.getElementById("ai-choice-emoji").innerText = "🤔";
+            document.getElementById("ai-choice-text").innerText = "Thinking...";
+            
+            const banner = document.getElementById("result-banner");
+            
+            banner.innerText = "ROCK...";
+            banner.style.color = "#ff4444";
+            
+            setTimeout(() => {
+                banner.innerText = "PAPER...";
+                banner.style.color = "#ffeb3b";
+            }, 800);
+
+            setTimeout(() => {
+                banner.innerText = "SCISSORS...";
+                banner.style.color = "#00ffcc";
+            }, 1600);
+
+            setTimeout(() => {
+                banner.innerText = "SHOOT!";
+                banner.style.color = "#ffffff";
+                
+                const flash = document.getElementById("flash-overlay");
+                flash.style.opacity = "0.8";
+                setTimeout(() => flash.style.opacity = "0", 150);
+
+                evaluateCapturedTurn(currentLivePrediction, currentLiveConfidence);
+            }, 2400);
+        }
+
+        function evaluateCapturedTurn(capturedChoice, capturedConfidence) {
+            if (!["rock", "paper", "scissors"].includes(capturedChoice) || capturedConfidence < 0.5) {
+                document.getElementById("result-banner").innerText = "AI couldn't see a clear move on 'SHOOT!' Try again.";
+                document.getElementById("result-banner").style.color = "#ff9800";
+                cleanupRound();
+                return;
+            }
+
+            const choices = ["rock", "paper", "scissors"];
+            const emojis = { rock: "✊", paper: "✋", scissors: "✌️" };
+            
+            const aiChoice = choices[Math.floor(Math.random() * 3)];
+
+            document.getElementById("ai-choice-emoji").innerText = emojis[aiChoice];
+            document.getElementById("ai-choice-text").innerText = aiChoice.toUpperCase();
+
+            let resultText = "";
+            const banner = document.getElementById("result-banner");
+
+            if (capturedChoice === aiChoice) {
+                resultText = `Tie Game! (${capturedChoice.toUpperCase()})`;
+                banner.style.color = "#ffeb3b";
+                tieScore++;
+                document.getElementById("tie-score").innerText = tieScore;
+            } else if (
+                (capturedChoice === "rock" && aiChoice === "scissors") ||
+                (capturedChoice === "paper" && aiChoice === "rock") ||
+                (capturedChoice === "scissors" && aiChoice === "paper")
+            ) {
+                resultText = `You Win! ${capturedChoice.toUpperCase()} beats ${aiChoice.toUpperCase()}`;
+                banner.style.color = "#4caf50";
+                playerScore++;
+                document.getElementById("player-score").innerText = playerScore;
+            } else {
+                resultText = `AI Wins! ${aiChoice.toUpperCase()} beats ${capturedChoice.toUpperCase()}`;
+                banner.style.color = "#f44336";
+                aiScore++;
+                document.getElementById("ai-score").innerText = aiScore;
+            }
+
+            banner.innerText = resultText;
+            cleanupRound();
+        }
+
+        function cleanupRound() {
+            isCountingDown = false;
+            document.getElementById("round-btn").disabled = false;
+        }
+
+        function stopWebcam() {
+            isCameraRunning = false;
+            isCountingDown = false;
+            if (webcam) {
+                webcam.stop();
+            }
+            document.getElementById("start-btn").disabled = false;
+            document.getElementById("stop-btn").disabled = true;
+            document.getElementById("round-btn").disabled = true;
+            document.getElementById("result-banner").innerText = "Camera Paused.";
+            document.getElementById("result-banner").style.color = "#ffeb3b";
+        }
+    </script>
+</body>
+</html>
